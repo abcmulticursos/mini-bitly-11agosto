@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Clase En Vivo – Gestor de Enlaces</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>Clase En Vivo</h1>
+            <button id="addBtn" title="Agregar nuevo enlace">+</button>
+        </header>
+
+        <section id="linkList">
+            </section>
+
+        <div id="formModal" class="modal hidden">
+            <div class="modal-content">
+                
+                <div id="step1" class="form-step">
+                    <h2 id="formTitle">Nuevo Enlace</h2>
+                    <label>URL real de destino:</label>
+                    <input type="url" id="inputUrl" placeholder="https://..." />
+                    <label>Título identificador:</label>
+                    <input type="text" id="inputTitle" placeholder="Ej. Video Clase 1" />
+                    <div class="buttons">
+                        <button id="cancelBtn">Cancelar</button>
+                        <button id="nextStepBtn">Siguiente</button>
+                    </div>
+                </div>
+
+                <div id="step2" class="form-step hidden">
+                    <h2 id="aliasTitle">Nuevo Alias</h2>
+                    <label>Alias deseado para la URL final:</label>
+                    <input type="text" id="inputAlias" placeholder="Ej. Clase_en_Vivo" />
+                    <div class="buttons">
+                        <button id="backBtn">Volver</button>
+                        <button id="saveBtn">Guardar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api';
+
+        const linkList = document.getElementById('linkList');
+        const addBtn = document.getElementById('addBtn');
+        const formModal = document.getElementById('formModal');
+        const step1 = document.getElementById('step1');
+        const step2 = document.getElementById('step2');
+        const inputUrl = document.getElementById('inputUrl');
+        const inputTitle = document.getElementById('inputTitle');
+        const inputAlias = document.getElementById('inputAlias');
+        const nextStepBtn = document.getElementById('nextStepBtn');
+        const cancelBtn = document.getElementById('cancelBtn');
+        const backBtn = document.getElementById('backBtn');
+        const saveBtn = document.getElementById('saveBtn');
+
+        let editingId = null;
+
+        async function loadData() {
+            try {
+                const res = await fetch(`${API_URL}/get_links`);
+                if (!res.ok) throw new Error('Error al obtener los enlaces.');
+                const links = await res.json();
+                renderLinks(links);
+            } catch (error) {
+                console.error('Error al cargar los enlaces:', error);
+                linkList.innerHTML = '<p>Error al cargar los enlaces.</p>';
+            }
+        }
+
+        function renderLinks(links) {
+            linkList.innerHTML = '';
+            if (!links || links.length === 0) {
+                linkList.innerHTML = '<p>No hay enlaces disponibles. Crea uno nuevo.</p>';
+                return;
+            }
+            links.forEach(link => {
+                const item = document.createElement('div');
+                item.className = 'link-item';
+
+                const title = document.createElement('div');
+                title.className = 'link-title';
+                title.textContent = link.titulo;
+
+                const count = document.createElement('div');
+                count.className = 'link-count';
+                count.textContent = link.clicks + ' clics';
+
+                const url = document.createElement('div');
+                url.className = 'link-url';
+                url.textContent = window.location.origin + '/' + link.alias;
+
+                const actions = document.createElement('div');
+                actions.className = 'link-actions';
+
+                const copyBtn = document.createElement('button');
+                copyBtn.textContent = 'Copiar';
+                copyBtn.onclick = () => {
+                    navigator.clipboard.writeText(url.textContent)
+                        .then(() => alert('¡Enlace copiado!'))
+                        .catch(err => console.error('Error al copiar: ', err));
+                };
+
+                const editBtn = document.createElement('button');
+                editBtn.textContent = 'Editar';
+                editBtn.onclick = () => openEdit(link.id);
+
+                const delBtn = document.createElement('button');
+                delBtn.textContent = 'Eliminar';
+                delBtn.onclick = () => {
+                    if (confirm('¿Seguro que deseas eliminar este enlace?')) {
+                        deleteLink(link.id);
+                    }
+                };
+
+                actions.appendChild(copyBtn);
+                actions.appendChild(editBtn);
+                actions.appendChild(delBtn);
+
+                item.appendChild(title);
+                item.appendChild(count);
+                item.appendChild(url);
+                item.appendChild(actions);
+
+                linkList.appendChild(item);
+            });
+        }
+
+        function openForm() {
+            editingId = null;
+            formModal.classList.remove('hidden');
+            step1.classList.remove('hidden');
+            step2.classList.add('hidden');
+            inputUrl.value = '';
+            inputTitle.value = '';
+            inputAlias.value = '';
+        }
+
+        async function openEdit(id) {
+            try {
+                const res = await fetch(`${API_URL}/get_links`);
+                const links = await res.json();
+                const item = links.find(link => link.id === id);
+
+                editingId = id;
+                inputUrl.value = item.url_destino;
+                inputTitle.value = item.titulo;
+                inputAlias.value = item.alias;
+
+                step1.classList.remove('hidden');
+                step2.classList.add('hidden');
+                formModal.classList.remove('hidden');
+            } catch (error) {
+                console.error('Error al cargar datos para editar:', error);
+            }
+        }
+
+        async function deleteLink(id) {
+            try {
+                await fetch(`${API_URL}/delete`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id })
+                });
+                await loadData();
+            } catch (error) {
+                console.error('Error al eliminar enlace:', error);
+            }
+        }
+
+        nextStepBtn.onclick = () => {
+            if (!inputUrl.value || !inputTitle.value) {
+                alert('Completa todos los campos');
+                return;
+            }
+            step1.classList.add('hidden');
+            step2.classList.remove('hidden');
+        };
+
+        backBtn.onclick = () => {
+            step1.classList.remove('hidden');
+            step2.classList.add('hidden');
+        };
+
+        cancelBtn.onclick = () => formModal.classList.add('hidden');
+
+        saveBtn.onclick = async () => {
+            const alias = inputAlias.value.trim();
+            const url_destino = inputUrl.value.trim();
+            const titulo = inputTitle.value.trim();
+
+            if (!url_destino || !titulo) {
+                alert('Completa todos los campos');
+                return;
+            }
+
+            if (!editingId && !alias) {
+                alert('El alias no puede estar vacío.');
+                return;
+            }
+
+            if (editingId) {
+                await fetch(`${API_URL}/edit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: editingId, titulo, url_destino, alias })
+                });
+            } else {
+                await fetch(`${API_URL}/create`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ titulo, alias, url_destino })
+                });
+            }
+
+            formModal.classList.add('hidden');
+            await loadData();
+        };
+
+        addBtn.onclick = openForm;
+
+        loadData();
+    </script>
+</body>
+</html>
