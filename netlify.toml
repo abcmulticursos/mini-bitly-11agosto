@@ -3,6 +3,11 @@
   functions = "netlify/functions"
 
 [[redirects]]
+  from = "/api/test"
+  to = "/.netlify/functions/test_supabase"
+  status = 200
+
+[[redirects]]
   from = "/*"
   to = "/.netlify/functions/redirect"
   status = 200
